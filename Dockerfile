@@ -6,13 +6,13 @@ COPY frontend/package.json frontend/tsconfig.json frontend/tsconfig.node.json fr
 COPY frontend/src ./src
 RUN corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install --frozen-lockfile=false && pnpm build
 
-FROM rust:1.87-bookworm AS backend-builder
+FROM rust:1.88-bookworm AS backend-builder
 WORKDIR /app
 COPY backend/Cargo.toml backend/Cargo.toml
 COPY backend/src backend/src
 COPY infra infra
 COPY --from=frontend-builder /app/frontend/dist frontend/dist
-RUN cargo build --manifest-path backend/Cargo.toml --release
+RUN cargo build --manifest-path backend/Cargo.toml --release --target-dir /app/target
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update \
