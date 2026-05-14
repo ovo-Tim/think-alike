@@ -4,7 +4,7 @@ FROM node:22-bookworm-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/tsconfig.json frontend/tsconfig.node.json frontend/vite.config.ts frontend/index.html ./
 COPY frontend/src ./src
-RUN corepack enable && pnpm install --frozen-lockfile=false && pnpm build
+RUN corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install --frozen-lockfile=false && pnpm build
 
 FROM rust:1.87-bookworm AS backend-builder
 WORKDIR /app
