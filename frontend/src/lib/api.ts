@@ -46,6 +46,11 @@ export interface KanbanNode {
   age_hours: number
 }
 
+export interface KanbanResponse {
+  nodes: KanbanNode[]
+  normalized_stress: number
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     credentials: 'include',

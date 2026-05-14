@@ -2,10 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { api, type KanbanNode } from '../lib/api'
+import { api, type KanbanNode, type KanbanResponse } from '../lib/api'
 
 const route = useRoute()
 const nodes = ref<KanbanNode[]>([])
+const normalizedStress = ref(0)
 const selectedNodeId = ref('')
 const hoveredNodeId = ref('')
 const frameRef = ref<HTMLDivElement | null>(null)
@@ -333,8 +334,9 @@ function onWheel(event: WheelEvent) {
 
 async function loadKanban() {
   try {
-    const graphResponse = await api<{ nodes: KanbanNode[] }>('/api/kanban')
+    const graphResponse = await api<KanbanResponse>('/api/kanban')
     nodes.value = graphResponse.nodes
+    normalizedStress.value = graphResponse.normalized_stress
     selectedNodeId.value = graphResponse.nodes[0]?.id ?? ''
     await nextTick()
     fitView()
@@ -389,7 +391,10 @@ onBeforeUnmount(() => {
           <p class="eyebrow">Live map</p>
           <h2>Thought cloud</h2>
         </div>
-        <span class="pill">{{ nodes.length }} nodes</span>
+        <div class="kanban-summary-pills">
+          <span class="pill">{{ nodes.length }} nodes</span>
+          <span class="pill stress-pill">Stress {{ normalizedStress.toFixed(3) }}</span>
+        </div>
       </div>
 
       <div ref="frameRef" class="cloud-frame" :class="{ 'cloud-frame-fullscreen': isFullscreen }">
@@ -399,6 +404,7 @@ onBeforeUnmount(() => {
             <div class="cloud-legend-bar" />
             <span>6 months</span>
           </div>
+          <span class="pill stress-pill">Stress {{ normalizedStress.toFixed(3) }}</span>
           <div class="graph-toolbar-actions">
             <button type="button" class="graph-button" @click="fitView">Reset view</button>
             <button v-if="selectedNode" type="button" class="graph-button" @click="centerOnSelected">Center selected</button>

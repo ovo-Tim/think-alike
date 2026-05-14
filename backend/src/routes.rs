@@ -17,7 +17,7 @@ use rand::Rng;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row};
-use std::{cmp::Ordering, sync::Arc, time::Duration as StdDuration};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc, time::Duration as StdDuration};
 use uuid::Uuid;
 
 pub fn api_router() -> Router<Arc<AppState>> {
@@ -178,7 +178,7 @@ struct ThoughtResponse {
     author_avatar_url: Option<String>,
 }
 
-#[derive(FromRow)]
+#[derive(Clone, FromRow)]
 struct ThoughtRow {
     id: Uuid,
     user_id: i64,
@@ -308,8 +308,6 @@ async fn delete_thought(
         return Err(AppError::NotFound("thought not found".to_string()));
     }
 
-    invalidate_kanban_cache(&state).await;
-
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -330,8 +328,6 @@ async fn refresh_thought(
     .fetch_optional(&state.pool)
     .await?
     .ok_or_else(|| AppError::NotFound("thought not found".to_string()))?;
-
-    invalidate_kanban_cache(&state).await;
 
     Ok(Json(ThoughtResponse {
         id: updated.id,
@@ -470,19 +466,12 @@ pub struct KanbanNode {
 #[derive(Clone, Serialize)]
 pub struct KanbanResponse {
     nodes: Vec<KanbanNode>,
+    normalized_stress: f32,
 }
 
 async fn kanban_graph(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<KanbanResponse>, AppError> {
-    if let Some(cached) = state
-        .kanban_cache
-        .get(StdDuration::from_secs(state.config.kanban_cache_ttl_seconds))
-        .await
-    {
-        return Ok(Json(cached));
-    }
-
     let thoughts = sqlx::query_as::<_, ThoughtRow>(
         "select thoughts.id, thoughts.user_id, thoughts.title, thoughts.description, thoughts.created_at, thoughts.embedding, thoughts.embedding_dimensions, users.login as author_login, users.avatar_url as author_avatar_url from thoughts join users on users.github_id = thoughts.user_id order by thoughts.created_at desc limit 400",
     )
@@ -490,7 +479,10 @@ async fn kanban_graph(
     .await?;
 
     let Some(dominant_dimensions) = dominant_embedding_dimensions(&thoughts) else {
-        return Ok(Json(KanbanResponse { nodes: Vec::new() }));
+        return Ok(Json(KanbanResponse {
+            nodes: Vec::new(),
+            normalized_stress: 0.0,
+        }));
     };
 
     let thoughts = thoughts
@@ -498,31 +490,62 @@ async fn kanban_graph(
         .filter(|thought| thought.embedding_dimensions == dominant_dimensions)
         .collect::<Vec<_>>();
 
-    let sampled = weighted_recent_sample(thoughts, 120);
+    let thought_count = thoughts.len();
+    let layout = if let Some(cached) = state
+        .kanban_cache
+        .get(
+            StdDuration::from_secs(state.config.kanban_recompute_interval_seconds),
+            thought_count,
+        )
+        .await
+    {
+        cached
+    } else {
+        let sampled = weighted_recent_sample(thoughts.clone(), 120);
+        let embeddings = sampled
+            .iter()
+            .map(|thought| thought.embedding.to_vec())
+            .collect::<Vec<_>>();
+        let projection = project_to_2d(&embeddings);
+        let layout = crate::app::KanbanLayoutEntry {
+            thought_ids: sampled.iter().map(|thought| thought.id).collect(),
+            positions: projection.positions,
+            normalized_stress: projection.normalized_stress,
+        };
+        state.kanban_cache.set(thought_count, layout.clone()).await;
+        layout
+    };
 
-    let mut projected = sampled
+    let thoughts_by_id = thoughts
         .into_iter()
-        .map(|thought| {
-            let (x, y) = project_to_2d(&thought.embedding.to_vec());
-            let age_hours = (Utc::now() - thought.created_at).num_hours();
-            KanbanNode {
+        .map(|thought| (thought.id, thought))
+        .collect::<HashMap<_, _>>();
+
+    let mut projected = layout
+        .thought_ids
+        .into_iter()
+        .zip(layout.positions.into_iter())
+        .filter_map(|(thought_id, (x, y))| {
+            let thought = thoughts_by_id.get(&thought_id)?;
+            Some(KanbanNode {
                 id: thought.id,
-                title: thought.title,
-                description: thought.description,
+                title: thought.title.clone(),
+                description: thought.description.clone(),
                 author_github_id: thought.user_id,
-                author_login: thought.author_login,
-                author_avatar_url: thought.author_avatar_url,
+                author_login: thought.author_login.clone(),
+                author_avatar_url: thought.author_avatar_url.clone(),
                 x,
                 y,
-                age_hours,
-            }
+                age_hours: age_hours_since(thought.created_at),
+            })
         })
         .collect::<Vec<_>>();
 
     normalize_positions(&mut projected);
-    let response = KanbanResponse { nodes: projected };
-    state.kanban_cache.set(response.clone()).await;
-    Ok(Json(response))
+    Ok(Json(KanbanResponse {
+        nodes: projected,
+        normalized_stress: layout.normalized_stress,
+    }))
 }
 
 fn weighted_recent_sample(mut thoughts: Vec<ThoughtRow>, target: usize) -> Vec<ThoughtRow> {

@@ -33,26 +33,35 @@ pub struct KanbanCache {
 }
 
 #[derive(Clone)]
-struct KanbanCacheEntry {
-    cached_at: Instant,
-    response: routes::KanbanResponse,
+pub struct KanbanLayoutEntry {
+    pub thought_ids: Vec<uuid::Uuid>,
+    pub positions: Vec<(f32, f32)>,
+    pub normalized_stress: f32,
+}
+
+#[derive(Clone)]
+pub struct KanbanCacheEntry {
+    pub cached_at: Instant,
+    pub thought_count: usize,
+    pub response: KanbanLayoutEntry,
 }
 
 impl KanbanCache {
-    pub async fn get(&self, ttl: Duration) -> Option<routes::KanbanResponse> {
+    pub async fn get(&self, ttl: Duration, thought_count: usize) -> Option<KanbanLayoutEntry> {
         let cache = self.inner.read().await;
         let entry = cache.as_ref()?;
-        if entry.cached_at.elapsed() > ttl {
+        if entry.thought_count != thought_count || entry.cached_at.elapsed() > ttl {
             return None;
         }
 
         Some(entry.response.clone())
     }
 
-    pub async fn set(&self, response: routes::KanbanResponse) {
+    pub async fn set(&self, thought_count: usize, response: KanbanLayoutEntry) {
         let mut cache = self.inner.write().await;
         *cache = Some(KanbanCacheEntry {
             cached_at: Instant::now(),
+            thought_count,
             response,
         });
     }
@@ -60,6 +69,67 @@ impl KanbanCache {
     pub async fn invalidate(&self) {
         let mut cache = self.inner.write().await;
         *cache = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KanbanCache, KanbanLayoutEntry};
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    fn sample_layout() -> KanbanLayoutEntry {
+        KanbanLayoutEntry {
+            thought_ids: vec![Uuid::nil(), Uuid::from_u128(1)],
+            positions: vec![(1.0, 2.0), (3.0, 4.0)],
+            normalized_stress: 0.12,
+        }
+    }
+
+    #[tokio::test]
+    async fn returns_cached_layout_when_count_matches_and_ttl_has_not_expired() {
+        let cache = KanbanCache::default();
+        let layout = sample_layout();
+        cache.set(2, layout.clone()).await;
+
+        let cached = cache.get(Duration::from_secs(60), 2).await;
+
+        assert!(cached.is_some());
+        let cached = cached.unwrap();
+        assert_eq!(cached.thought_ids, layout.thought_ids);
+        assert_eq!(cached.positions, layout.positions);
+        assert_eq!(cached.normalized_stress, layout.normalized_stress);
+    }
+
+    #[tokio::test]
+    async fn misses_cache_when_thought_count_changes() {
+        let cache = KanbanCache::default();
+        cache.set(2, sample_layout()).await;
+
+        let cached = cache.get(Duration::from_secs(60), 3).await;
+
+        assert!(cached.is_none());
+    }
+
+    #[tokio::test]
+    async fn misses_cache_after_ttl_expiration() {
+        let cache = KanbanCache::default();
+        cache.set(2, sample_layout()).await;
+
+        let cached = cache.get(Duration::from_secs(0), 2).await;
+
+        assert!(cached.is_none());
+    }
+
+    #[tokio::test]
+    async fn invalidation_clears_cached_layout() {
+        let cache = KanbanCache::default();
+        cache.set(2, sample_layout()).await;
+        cache.invalidate().await;
+
+        let cached = cache.get(Duration::from_secs(60), 2).await;
+
+        assert!(cached.is_none());
     }
 }
 

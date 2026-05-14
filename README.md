@@ -43,7 +43,7 @@ Optional variables:
 - `OPENAI_EMBEDDING_URL`: defaults to `https://api.openai.com/v1/embeddings`
 - `OPENAI_EMBEDDING_MODEL`: defaults to `text-embedding-3-small`
 - `THOUGHTS_PER_DAY`: defaults to `30`
-- `KANBAN_CACHE_TTL_SECONDS`: defaults to `15`
+- `KANBAN_RECOMPUTE_INTERVAL_SECONDS`: defaults to `10800` (3 hours)
 - `IP_RATE_LIMIT_REQUESTS`: defaults to `120`
 - `IP_RATE_LIMIT_WINDOW_SECONDS`: defaults to `60`
 
@@ -51,7 +51,7 @@ Optional variables:
 
 `GITHUB_REDIRECT_URI` should match the callback URL configured in your GitHub OAuth app. If it is omitted, the backend falls back to `${APP_URL}/api/auth/github/callback`.
 
-The public kanban API is cached in memory for `KANBAN_CACHE_TTL_SECONDS`, and all `/api` requests are protected by a per-IP fixed-window rate limit using `IP_RATE_LIMIT_REQUESTS` over `IP_RATE_LIMIT_WINDOW_SECONDS`.
+The public kanban API caches its sampled 2D layout in memory and only recomputes it when a new thought is created or when `KANBAN_RECOMPUTE_INTERVAL_SECONDS` expires. All `/api` requests are protected by a per-IP fixed-window rate limit using `IP_RATE_LIMIT_REQUESTS` over `IP_RATE_LIMIT_WINDOW_SECONDS`.
 
 ## Local development
 
