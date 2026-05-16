@@ -13,6 +13,12 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          ram: 1GB
+
   embeddings:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
     command:
@@ -44,6 +50,9 @@ services:
       - "8080:8080"
     deploy:
       resources:
+        limits:
+          cpus: '4.0'
+          ram: 16GB
         reservations:
           devices:
             - driver: nvidia
@@ -67,6 +76,12 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          ram: 1GB
 
 volumes:
   postgres-data:
