@@ -135,9 +135,20 @@ button {
   color: #dfe6ff;
 }
 
-.pulse-a { top: 10%; left: 10%; }
-.pulse-b { top: 42%; right: 12%; }
-.pulse-c { bottom: 8%; left: 18%; }
+.pulse-a {
+  top: 10%;
+  left: 10%;
+}
+
+.pulse-b {
+  top: 42%;
+  right: 12%;
+}
+
+.pulse-c {
+  bottom: 8%;
+  left: 18%;
+}
 
 .app-page {
   display: flex;
@@ -456,6 +467,8 @@ button {
   border: 1px solid rgba(146, 168, 255, 0.18);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(16px);
+  height: 100%;
+  overflow-y: auto;
 }
 
 .graph-inspector {
@@ -531,6 +544,8 @@ button {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 30rem;
+  overflow-y: auto;
 }
 
 .thought-card h3 {
@@ -678,7 +693,25 @@ button {
   width: min(320px, calc(100% - 28px));
 }
 
+.kanban-thoughts-panel {
+  margin-top: 24px;
+}
+
+.kanban-thought-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.kanban-thought-card {
+  min-height: 100%;
+}
+
+.subtle-pill {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(237, 242, 255, 0.76);
+}
+
 @media (max-width: 980px) {
+
   .login-page,
   .home-grid {
     grid-template-columns: 1fr;

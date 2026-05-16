@@ -2,10 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { api, type KanbanNode, type KanbanResponse } from '../lib/api'
+import { api, type KanbanNode, type KanbanResponse, type Thought } from '../lib/api'
 
 const route = useRoute()
 const nodes = ref<KanbanNode[]>([])
+const thoughts = ref<Thought[]>([])
 const normalizedStress = ref(0)
 const selectedNodeId = ref('')
 const hoveredNodeId = ref('')
@@ -52,6 +53,24 @@ function ageColor(ageHours: number) {
   const ratio = clamp(ageHours / maxAgeHours, 0, 1)
   const hue = 220 - ratio * 220
   return `hsla(${hue}, 84%, 62%, 0.9)`
+}
+
+function formatAge(ageHours: number) {
+  if (ageHours < 1) {
+    return 'just now'
+  }
+
+  if (ageHours < 24) {
+    return `${ageHours}h ago`
+  }
+
+  const days = Math.floor(ageHours / 24)
+  if (days < 30) {
+    return `${days}d ago`
+  }
+
+  const months = Math.floor(days / 30)
+  return `${months}mo ago`
 }
 
 function labelOffset(index: number) {
@@ -336,6 +355,7 @@ async function loadKanban() {
   try {
     const graphResponse = await api<KanbanResponse>('/api/kanban')
     nodes.value = graphResponse.nodes
+    thoughts.value = graphResponse.thoughts
     normalizedStress.value = graphResponse.normalized_stress
     selectedNodeId.value = graphResponse.nodes[0]?.id ?? ''
     await nextTick()
@@ -472,6 +492,31 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
+    </section>
+
+    <section v-if="!isFullscreen" class="panel kanban-thoughts-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Timeline</p>
+          <h2>All published thoughts</h2>
+        </div>
+        <span class="pill">{{ thoughts.length }} thoughts</span>
+      </div>
+
+      <div v-if="thoughts.length" class="thought-list kanban-thought-list">
+        <article v-for="thought in thoughts" :key="thought.id" class="thought-card kanban-thought-card">
+          <h3>{{ thought.title }}</h3>
+          <p>{{ thought.description }}</p>
+          <div class="thought-card-actions">
+            <div>
+              <p class="thought-meta">@{{ thought.author_login }}</p>
+              <time>{{ new Date(thought.created_at).toLocaleString() }}</time>
+            </div>
+            <span class="pill subtle-pill">{{ formatAge(thought.age_hours) }}</span>
+          </div>
+        </article>
+      </div>
+      <div v-else class="empty-state">No thoughts yet.</div>
     </section>
   </div>
 </template>

@@ -48,6 +48,7 @@ export interface KanbanNode {
 
 export interface KanbanResponse {
   nodes: KanbanNode[]
+  thoughts: Thought[]
   normalized_stress: number
 }
 

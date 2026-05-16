@@ -166,7 +166,7 @@ struct CreateThoughtRequest {
     description: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct ThoughtResponse {
     id: Uuid,
     title: String,
@@ -466,6 +466,7 @@ pub struct KanbanNode {
 #[derive(Clone, Serialize)]
 pub struct KanbanResponse {
     nodes: Vec<KanbanNode>,
+    thoughts: Vec<ThoughtResponse>,
     normalized_stress: f32,
 }
 
@@ -481,6 +482,7 @@ async fn kanban_graph(
     let Some(dominant_dimensions) = dominant_embedding_dimensions(&thoughts) else {
         return Ok(Json(KanbanResponse {
             nodes: Vec::new(),
+            thoughts: Vec::new(),
             normalized_stress: 0.0,
         }));
     };
@@ -541,9 +543,24 @@ async fn kanban_graph(
         })
         .collect::<Vec<_>>();
 
+    let thought_list = thoughts_by_id
+        .values()
+        .map(|thought| ThoughtResponse {
+            id: thought.id,
+            title: thought.title.clone(),
+            description: thought.description.clone(),
+            created_at: thought.created_at,
+            age_hours: age_hours_since(thought.created_at),
+            author_github_id: thought.user_id,
+            author_login: thought.author_login.clone(),
+            author_avatar_url: thought.author_avatar_url.clone(),
+        })
+        .collect::<Vec<_>>();
+
     normalize_positions(&mut projected);
     Ok(Json(KanbanResponse {
         nodes: projected,
+        thoughts: thought_list,
         normalized_stress: layout.normalized_stress,
     }))
 }
