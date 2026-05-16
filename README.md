@@ -56,27 +56,45 @@ The public kanban API caches its sampled 2D layout in memory and only recomputes
 
 ## Local development
 
-1. Start PostgreSQL with pgvector:
+1. One-click start:
+
+```bash
+./scripts/dev.sh
+```
+
+This starts:
+
+- PostgreSQL in Docker, published only to `127.0.0.1:55432`
+- the Rust backend on `http://localhost:3000`
+- the Vite frontend on `http://localhost:5173`
+
+It expects:
+
+- Docker Desktop to be running
+- `.env` to exist and contain `POSTGRES_PASSWORD`
+- an embedding server to be available at the `OPENAI_EMBEDDING_URL` in `.env` if you want thought publishing to work
+
+2. Manual PostgreSQL start only:
 
 ```bash
 docker compose up db -d
 ```
 
-2. Install frontend dependencies:
+3. Install frontend dependencies:
 
 ```bash
 npx pnpm install
 ```
 
-3. Run the frontend dev server:
+4. Run the frontend dev server:
 
 ```bash
 npx pnpm --dir frontend dev
 ```
 
-4. Set a strong `POSTGRES_PASSWORD` in `.env` before starting the stack.
+5. Set a strong `POSTGRES_PASSWORD` in `.env` before starting the stack.
 
-5. For host-based backend development, create a local-only DB port forward or override first. Example:
+6. For host-based backend development, create a local-only DB port forward or override first. Example:
 
 ```bash
 docker compose port db 5432
@@ -93,7 +111,7 @@ services:
 
 Then set `DATABASE_URL=postgres://postgres:<your-postgres-password>@localhost:55432/think_alike` in your local `.env`.
 
-6. Run the backend:
+7. Run the backend:
 
 ```bash
 cargo run --manifest-path backend/Cargo.toml
